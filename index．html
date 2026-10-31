@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提出物管理ロボ 🤖 - 宿題・課題を絶対に忘れない！</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PeerJS for P2P Communication -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f8fafc;
+        }
+        .robot-bounce {
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <!-- Header Navigation -->
+    <header class="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white/20 p-2.5 rounded-2xl backdrop-blur-md robot-bounce">
+                    <i class="fa-solid fa-robot text-2xl text-yellow-300"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-wide flex items-center gap-2">
+                        提出物管理ロボ <span class="text-[10px] bg-yellow-400 text-slate-900 font-extrabold px-2 py-0.5 rounded-full uppercase">Ver 2.0</span>
+                    </h1>
+                    <p class="text-xs text-blue-100">宿題・プリント・レポートの提出忘れゼロへ！</p>
+                </div>
+            </div>
+
+            <!-- Top Right Action Controls -->
+            <div class="flex items-center space-x-2">
+                <button onclick="openAddModal()" class="bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all transform active:scale-95 flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus text-sm"></i> 提出物を追加
+                </button>
+                <button onclick="toggleFriendPanel()" class="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-3 py-2.5 rounded-xl border border-white/20 transition-all flex items-center gap-1.5 relative">
+                    <i class="fa-solid fa-users"></i> 友達と連携
+                    <span id="friend-status-dot" class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+
+        <!-- Notification / Warning Alert Bar -->
+        <div id="urgent-alert-bar" class="hidden bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-amber-900 animate-pulse">
+            <div class="flex items-center space-x-3">
+                <span class="bg-amber-500 text-white text-lg p-2 rounded-xl flex-shrink-0">
+                    <i class="fa-solid fa-bell"></i>
+                </span>
+                <div>
+                    <h3 class="font-extrabold text-sm" id="alert-title">提出期限が目前の宿題があります！</h3>
+                    <p class="text-xs text-amber-800" id="alert-desc">今日・明日が締切の提出物を優先して終わらせよう！</p>
+                </div>
+            </div>
+            <button onclick="setFilterStatus('urgent')" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl flex-shrink-0 transition">
+                すぐ確認する
+            </button>
+        </div>
+
+        <!-- Dashboard Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <!-- Stat 1: Urgent -->
+            <div onclick="setFilterStatus('urgent')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:border-red-400 hover:shadow transition-all group">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-red-500 bg-red-50 px-2.5 py-1 rounded-full">ピンチ！</span>
+                    <i class="fa-solid fa-fire text-red-400 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span class="text-xs font-bold text-slate-500">今日〜明日の締切</span>
+                    <span id="count-urgent" class="text-2xl font-black text-red-600">0</span>
+                </div>
+            </div>
+
+            <!-- Stat 2: In Progress -->
+            <div onclick="setFilterStatus('in_progress')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:border-blue-400 hover:shadow transition-all group">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">進行中</span>
+                    <i class="fa-solid fa-spinner text-blue-400 group-hover:rotate-45 transition-transform"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span class="text-xs font-bold text-slate-500">やってる最中</span>
+                    <span id="count-in-progress" class="text-2xl font-black text-blue-600">0</span>
+                </div>
+            </div>
+
+            <!-- Stat 3: Not Started -->
+            <div onclick="setFilterStatus('todo')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:border-slate-400 hover:shadow transition-all group">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">未着手</span>
+                    <i class="fa-solid fa-hourglass-start text-slate-400 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span class="text-xs font-bold text-slate-500">まだ手をつけてない</span>
+                    <span id="count-todo" class="text-2xl font-black text-slate-700">0</span>
+                </div>
+            </div>
+
+            <!-- Stat 4: Completed -->
+            <div onclick="setFilterStatus('completed')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:border-emerald-400 hover:shadow transition-all group">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">完了！</span>
+                    <i class="fa-solid fa-circle-check text-emerald-400 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <div class="mt-2 flex items-baseline justify-between">
+                    <span class="text-xs font-bold text-slate-500">提出準備OK</span>
+                    <span id="count-completed" class="text-2xl font-black text-emerald-600">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls & Filter Bar -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <!-- Search Input -->
+            <div class="relative flex-grow max-w-md">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input type="text" id="search-input" oninput="renderList()" placeholder="提出物名・メモで検索..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-300 outline-none transition">
+            </div>
+
+            <!-- Subject Filters Buttons -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs">
+                <button onclick="setSubjectFilter('all')" id="subj-all" class="subj-btn bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">すべて</button>
+                <button onclick="setSubjectFilter('国語')" id="subj-国語" class="subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">🌸 国語</button>
+                <button onclick="setSubjectFilter('数学')" id="subj-数学" class="subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">📐 数学</button>
+                <button onclick="setSubjectFilter('英語')" id="subj-英語" class="subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">🔤 英語</button>
+                <button onclick="setSubjectFilter('理科')" id="subj-理科" class="subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">🧪 理科</button>
+                <button onclick="setSubjectFilter('社会')" id="subj-社会" class="subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">🗺️️ 社会</button>
+                <button onclick="setSubjectFilter('その他')" id="subj-その他" class="subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0">🎨 その他</button>
+            </div>
+        </div>
+
+        <!-- Content Grid: Submission List + Side Focus Tools -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Submission List Column (2 cols) -->
+            <div class="lg:col-span-2 space-y-3">
+                <div class="flex items-center justify-between px-1">
+                    <h2 class="text-sm font-extrabold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-500"></i> 提出物一覧
+                        <span id="active-filter-badge" class="text-[11px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">全表示</span>
+                    </h2>
+                    <select id="sort-select" onchange="renderList()" class="text-xs bg-slate-100 border border-slate-200 font-bold text-slate-600 py-1 px-2 rounded-xl outline-none">
+                        <option value="deadline">📅 締切が近い順</option>
+                        <option value="priority">🔥 優先度が高い順</option>
+                        <option value="created">⏰ 登録が新しい順</option>
+                    </select>
+                </div>
+
+                <!-- Submissions Container -->
+                <div id="submission-list" class="space-y-3">
+                    <!-- Cards will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <!-- Side Tools Panel (1 col) -->
+            <div class="space-y-6">
+
+                <!-- Timer Card -->
+                <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-stopwatch text-indigo-500"></i> 集中タイマー
+                        </h3>
+                        <span id="today-study-total" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">今日: 0分</span>
+                    </div>
+
+                    <div class="bg-slate-900 text-white rounded-2xl p-5 text-center relative overflow-hidden shadow-inner">
+                        <div id="timer-display" class="text-4xl font-mono font-black tracking-widest my-1 text-yellow-300">25:00</div>
+                        <p id="timer-status" class="text-xs text-slate-400 mb-3">提出物を終わらせる時間！</p>
+
+                        <div class="flex justify-center gap-2">
+                            <button id="btn-timer-toggle" onclick="toggleTimer()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition flex items-center gap-1">
+                                <i class="fa-solid fa-play"></i> <span>スタート</span>
+                            </button>
+                            <button onclick="resetTimer()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3 py-2 rounded-xl transition">
+                                <i class="fa-solid fa-rotate-right"></i> リセット
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Friend Peer Room Sidebar Panel -->
+                <div id="friend-panel" class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-comments text-purple-500"></i> 友達と課題共有ルーム
+                        </h3>
+                        <span id="room-badge" class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">準備完了</span>
+                    </div>
+
+                    <!-- My ID & Target ID -->
+                    <div class="space-y-2 text-xs">
+                        <div>
+                            <span class="text-slate-400 font-bold block mb-1">あなたのID</span>
+                            <div class="flex gap-1.5">
+                                <input id="my-peer-id" type="text" readonly value="準備中..." class="bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 font-mono text-slate-700 w-full text-xs select-all">
+                                <button onclick="copyMyId()" class="bg-slate-800 text-white font-bold px-3 py-1.5 rounded-xl hover:bg-slate-900 transition flex-shrink-0">コピー</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="text-slate-400 font-bold block mb-1">友達のIDと接続</span>
+                            <div class="flex gap-1.5">
+                                <input id="target-peer-id" type="text" placeholder="友達のIDを入力..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs w-full outline-none focus:border-indigo-400">
+                                <button onclick="connectToPeer()" class="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl hover:bg-indigo-700 transition flex-shrink-0">接続</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 友達の勉強時間カード -->
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 space-y-2 text-xs">
+                        <div class="flex items-center justify-between text-indigo-900 font-extrabold">
+                            <span class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-graduation-cap text-indigo-600"></i> 友達の今日の勉強時間
+                            </span>
+                            <button onclick="broadcastStudyTime()" class="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded-lg transition">
+                                <i class="fa-solid fa-rotate"></i> 更新
+                            </button>
+                        </div>
+                        <div id="friend-study-items" class="space-y-1 text-slate-600">
+                            <p class="text-slate-400 text-[11px] text-center py-1">友達と接続すると、お互いの勉強時間がここにリアルタイム表示されます！</p>
+                        </div>
+                    </div>
+
+                    <!-- Peer Chat Log Box -->
+                    <div id="chat-box" class="bg-slate-50 rounded-2xl border border-slate-200 p-3 h-40 overflow-y-auto space-y-2 text-xs">
+                        <p class="text-center text-slate-400 text-[11px] my-2">友達のIDを入れて接続すると、提出物の提出期限を教え合ったりチャットができます！</p>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="flex gap-1.5">
+                        <input id="chat-input" type="text" onkeypress="if(event.key==='Enter') sendChatMessage()" placeholder="メッセージを送る..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full outline-none focus:ring-1 focus:ring-indigo-300">
+                        <button onclick="sendChatMessage()" class="bg-indigo-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs hover:bg-indigo-700 transition flex-shrink-0">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Add / Edit Submission Modal -->
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 transform scale-95 transition-transform duration-300" id="modal-container">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <h3 class="text-base font-extrabold text-slate-800 flex items-center gap-2" id="modal-title">
+                    <i class="fa-solid fa-plus-circle text-indigo-500"></i> 新しい提出物を登録
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="submission-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="edit-id" value="">
+
+                <!-- Title Input -->
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-600 mb-1">提出物の名前・内容 <span class="text-red-500">*</span></label>
+                    <input type="text" id="input-title" required placeholder="例：漢字ドリル P.20〜24、理科実験レポート" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:ring-2 focus:ring-indigo-300 outline-none">
+                    
+                    <!-- Quick Presets -->
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <button type="button" onclick="setQuickTitle('ワークのP.◯〜◯')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg">📘 ワーク</button>
+                        <button type="button" onclick="setQuickTitle('プリント◯枚')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg">📄 プリント</button>
+                        <button type="button" onclick="setQuickTitle('教科書ノートまとめ')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg">📓 ノートまとめ</button>
+                        <button type="button" onclick="setQuickTitle('読書感想文・作文')" class="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg">✍️ レポート/作文</button>
+                    </div>
+                </div>
+
+                <!-- Grid: Subject & Deadline -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">教科 <span class="text-red-500">*</span></label>
+                        <select id="input-subject" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-300">
+                            <option value="国語">🌸 国語</option>
+                            <option value="数学">📐 数学</option>
+                            <option value="英語">🔤 英語</option>
+                            <option value="理科">🧪 理科</option>
+                            <option value="社会">🗺️ 社会</option>
+                            <option value="その他">🎨 その他</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">提出期限 (締切) <span class="text-red-500">*</span></label>
+                        <input type="date" id="input-deadline" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-300">
+                    </div>
+                </div>
+
+                <!-- Grid: Priority & Status -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">優先度</label>
+                        <select id="input-priority" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-300">
+                            <option value="high">🔥 高（大至急）</option>
+                            <option value="medium" selected>⚡️ 中（ふつう）</option>
+                            <option value="low">🌱 低（よ余裕）</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-600 mb-1">現在の状態</label>
+                        <select id="input-status" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-300">
+                            <option value="todo">⏳ 未着手</option>
+                            <option value="in_progress">✏ 進行中</option>
+                            <option value="completed">🎉 提出準備完了</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Notes / Memo -->
+                <div>
+                    <label class="block text-xs font-extrabold text-slate-600 mb-1">メモ・注意点</label>
+                    <textarea id="input-memo" rows="2" placeholder="例：裏面も忘れずに解答すること！赤いファイルに入れて提出。" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-indigo-300 resize-none"></textarea>
+                </div>
+
+                <!-- Form Submit Button -->
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">キャンセル</button>
+                    <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-check"></i> 保存する
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl z-50 flex items-center space-x-3 transition-all duration-300 opacity-0 pointer-events-none transform translate-y-3">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toast-message" class="text-xs font-bold">通知メッセージ</span>
+    </div>
+
+    <script>
+        // State Management
+        let submissions = [];
+        let activeSubjectFilter = 'all';
+        let activeStatusFilter = 'all';
+        let timerInterval = null;
+        let timerSeconds = 1500; // 25 mins
+        let isTimerRunning = false;
+        let todayStudyMinutes = 0;
+        let friendStudyTimes = {}; 
+
+        // PeerJS Communications & Local Sync
+        let peer = null;
+        let myPeerId = "";
+        let connections = {};
+        let localChannel = null;
+
+        // Initialize on window load
+        window.onload = function() {
+            loadSubmissions();
+            loadTimerStats();
+            initPeer();
+            initLocalBroadcast();
+            
+            // Set default date input to tomorrow
+            document.getElementById('input-deadline').value = getRelativeDateStr(1);
+            
+            renderList();
+            checkUrgentAlerts();
+        };
+
+        // Date helper (YYYY-MM-DD)
+        function getRelativeDateStr(offsetDays) {
+            const d = new Date();
+            d.setDate(d.getDate() + offsetDays);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // Days left calculation
+        function getDaysLeft(deadlineStr) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadline = new Date(deadlineStr);
+            deadline.setHours(0, 0, 0, 0);
+            const diffTime = deadline - today;
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        // LocalStorage CRUD Operations
+        function loadSubmissions() {
+            const saved = localStorage.getItem('homework_submissions_v2');
+            if (saved) {
+                try {
+                    submissions = JSON.parse(saved);
+                } catch(e) {
+                    submissions = [];
+                }
+            } else {
+                // Initial demo data
+                submissions = [
+                    { id: '1', title: '数学ワーク P.40〜45', subject: '数学', deadline: getRelativeDateStr(0), priority: 'high', status: 'in_progress', memo: '途中式の計算プロセスも書くこと' },
+                    { id: '2', title: '漢字テスト勉強＆プリント', subject: '国語', deadline: getRelativeDateStr(1), priority: 'high', status: 'todo', memo: '裏面の熟語の書き取りが範囲' },
+                    { id: '3', title: '理科の実験観察レポート', subject: '理科', deadline: getRelativeDateStr(3), priority: 'medium', status: 'todo', memo: 'グラフとまとめの考察を入れる' }
+                ];
+                saveSubmissions();
+            }
+        }
+
+        function saveSubmissions() {
+            localStorage.setItem('homework_submissions_v2', JSON.stringify(submissions));
+            checkUrgentAlerts();
+            updateCounts();
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-id').value;
+            const title = document.getElementById('input-title').value.trim();
+            const subject = document.getElementById('input-subject').value;
+            const deadline = document.getElementById('input-deadline').value;
+            const priority = document.getElementById('input-priority').value;
+            const status = document.getElementById('input-status').value;
+            const memo = document.getElementById('input-memo').value.trim();
+
+            if (!title || !deadline) return;
+
+            if (editId) {
+                // Edit mode
+                submissions = submissions.map(sub => {
+                    if (sub.id === editId) {
+                        return { ...sub, title, subject, deadline, priority, status, memo };
+                    }
+                    return sub;
+                });
+                showToast("提出物を更新しました！", "success");
+            } else {
+                // New mode
+                const newSub = {
+                    id: Date.now().toString(),
+                    title,
+                    subject,
+                    deadline,
+                    priority,
+                    status,
+                    memo,
+                    createdAt: new Date().toISOString()
+                };
+                submissions.push(newSub);
+                showToast("提出物を新規追加しました！", "success");
+            }
+
+            saveSubmissions();
+            renderList();
+            closeModal();
+        }
+
+        function deleteSubmission(id) {
+            submissions = submissions.filter(s => s.id !== id);
+            saveSubmissions();
+            renderList();
+            showToast("提出物を削除しました", "info");
+        }
+
+        function toggleStatus(id) {
+            submissions = submissions.map(s => {
+                if (s.id === id) {
+                    let nextStatus = 'todo';
+                    if (s.status === 'todo') nextStatus = 'in_progress';
+                    else if (s.status === 'in_progress') nextStatus = 'completed';
+                    else nextStatus = 'todo';
+                    return { ...s, status: nextStatus };
+                }
+                return s;
+            });
+            saveSubmissions();
+            renderList();
+            playBeepSound(600, 0.1);
+        }
+
+        function openAddModal() {
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-plus-circle text-indigo-500"></i> 新しい提出物を登録`;
+            document.getElementById('submission-form').reset();
+            document.getElementById('edit-id').value = "";
+            document.getElementById('input-deadline').value = getRelativeDateStr(1);
+            
+            const overlay = document.getElementById('modal-overlay');
+            const container = document.getElementById('modal-container');
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+            container.classList.remove('scale-95');
+        }
+
+        function openEditModal(id) {
+            const item = submissions.find(s => s.id === id);
+            if (!item) return;
+
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-indigo-500"></i> 提出物を編集`;
+            document.getElementById('edit-id').value = item.id;
+            document.getElementById('input-title').value = item.title;
+            document.getElementById('input-subject').value = item.subject;
+            document.getElementById('input-deadline').value = item.deadline;
+            document.getElementById('input-priority').value = item.priority || 'medium';
+            document.getElementById('input-status').value = item.status;
+            document.getElementById('input-memo').value = item.memo || '';
+
+            const overlay = document.getElementById('modal-overlay');
+            const container = document.getElementById('modal-container');
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+            container.classList.remove('scale-95');
+        }
+
+        function closeModal() {
+            const overlay = document.getElementById('modal-overlay');
+            const container = document.getElementById('modal-container');
+            overlay.classList.add('opacity-0', 'pointer-events-none');
+            container.classList.add('scale-95');
+        }
+
+        function setQuickTitle(titleText) {
+            document.getElementById('input-title').value = titleText;
+        }
+
+        function setSubjectFilter(subj) {
+            activeSubjectFilter = subj;
+            document.querySelectorAll('.subj-btn').forEach(btn => {
+                btn.className = 'subj-btn bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0';
+            });
+            const selectedBtn = document.getElementById(`subj-${subj}`);
+            if (selectedBtn) {
+                selectedBtn.className = 'subj-btn bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl transition flex-shrink-0';
+            }
+            renderList();
+        }
+
+        function setFilterStatus(status) {
+            activeStatusFilter = status;
+            renderList();
+        }
+
+        function updateCounts() {
+            const urgentCount = submissions.filter(s => s.status !== 'completed' && getDaysLeft(s.deadline) <= 1).length;
+            const inProgressCount = submissions.filter(s => s.status === 'in_progress').length;
+            const todoCount = submissions.filter(s => s.status === 'todo').length;
+            const completedCount = submissions.filter(s => s.status === 'completed').length;
+
+            document.getElementById('count-urgent').innerText = urgentCount;
+            document.getElementById('count-in-progress').innerText = inProgressCount;
+            document.getElementById('count-todo').innerText = todoCount;
+            document.getElementById('count-completed').innerText = completedCount;
+        }
+
+        function checkUrgentAlerts() {
+            const urgentList = submissions.filter(s => s.status !== 'completed' && getDaysLeft(s.deadline) <= 1);
+            const alertBar = document.getElementById('urgent-alert-bar');
+            if (urgentList.length > 0) {
+                alertBar.classList.remove('hidden');
+                document.getElementById('alert-title').innerText = `ピンチ！今日〜明日の提出物が【${urgentList.length}件】あります！`;
+                document.getElementById('alert-desc').innerText = `「${urgentList[0].title}」などを早めに終わらせましょう！`;
+            } else {
+                alertBar.classList.add('hidden');
+            }
+        }
+
+        function renderList() {
+            updateCounts();
+            const container = document.getElementById('submission-list');
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase().trim();
+            const sortBy = document.getElementById('sort-select').value;
+
+            // Update status filter badge
+            const badge = document.getElementById('active-filter-badge');
+            if (activeStatusFilter === 'urgent') badge.innerText = '締切間近 (今日・明日)';
+            else if (activeStatusFilter === 'todo') badge.innerText = '未着手';
+            else if (activeStatusFilter === 'in_progress') badge.innerText = '進行中';
+            else if (activeStatusFilter === 'completed') badge.innerText = '完了済み';
+            else badge.innerText = '全表示';
+
+            // Filter logic
+            let filtered = submissions.filter(item => {
+                // Subject filter
+                if (activeSubjectFilter !== 'all' && item.subject !== activeSubjectFilter) return false;
+                
+                // Status filter
+                if (activeStatusFilter === 'urgent') {
+                    if (item.status === 'completed') return false;
+                    if (getDaysLeft(item.deadline) > 1) return false;
+                } else if (activeStatusFilter !== 'all') {
+                    if (item.status !== activeStatusFilter) return false;
+                }
+
+                // Search keyword filter
+                if (searchKeyword) {
+                    const matchTitle = item.title.toLowerCase().includes(searchKeyword);
+                    const matchMemo = (item.memo || '').toLowerCase().includes(searchKeyword);
+                    const matchSubject = item.subject.toLowerCase().includes(searchKeyword);
+                    if (!matchTitle && !matchMemo && !matchSubject) return false;
+                }
+
+                return true;
+            });
+
+            // Sorting logic
+            filtered.sort((a, b) => {
+                if (sortBy === 'deadline') {
+                    return new Date(a.deadline) - new Date(b.deadline);
+                } else if (sortBy === 'priority') {
+                    const pMap = { high: 3, medium: 2, low: 1 };
+                    return (pMap[b.priority || 'medium'] - pMap[a.priority || 'medium']);
+                } else {
+                    return (b.id - a.id);
+                }
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
+                        <i class="fa-solid fa-clipboard-check text-4xl text-slate-300 mb-2"></i>
+                        <p class="text-sm font-extrabold text-slate-600">該当する提出物はありません！</p>
+                        <p class="text-xs text-slate-400 mt-1">提出物を追加するか、フィルターを変更してください。</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Generate HTML for cards
+            container.innerHTML = filtered.map(item => {
+                const daysLeft = getDaysLeft(item.deadline);
+                
+                // Deadline badge styling
+                let daysBadge = '';
+                if (item.status === 'completed') {
+                    daysBadge = `<span class="bg-emerald-100 text-emerald-700 text-[11px] font-black px-2.5 py-1 rounded-full"><i class="fa-solid fa-check"></i> 提出準備OK</span>`;
+                } else if (daysLeft < 0) {
+                    daysBadge = `<span class="bg-red-600 text-white text-[11px] font-black px-2.5 py-1 rounded-full animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> 期限切れ (${Math.abs(daysLeft)}日超過)</span>`;
+                } else if (daysLeft === 0) {
+                    daysBadge = `<span class="bg-red-500 text-white text-[11px] font-black px-2.5 py-1 rounded-full animate-bounce"><i class="fa-solid fa-fire"></i> 今日が締切！</span>`;
+                } else if (daysLeft === 1) {
+                    daysBadge = `<span class="bg-amber-500 text-white text-[11px] font-black px-2.5 py-1 rounded-full"><i class="fa-solid fa-clock"></i> 明日締切</span>`;
+                } else {
+                    daysBadge = `<span class="bg-slate-100 text-slate-600 text-[11px] font-extrabold px-2.5 py-1 rounded-full">あと ${daysLeft} 日</span>`;
+                }
+
+                // Subject icon & color
+                const subjectIcons = {
+                    '国語': '🌸', '数学': '📐', '英語': '🔤', '理科': '🧪', '社会': '🗺️', 'その他': '🎨'
+                };
+
+                // Priority Badge
+                const pIcons = {
+                    high: '<span class="text-red-500 font-black text-xs">🔥 高</span>',
+                    medium: '<span class="text-amber-500 font-black text-xs">⚡ 中</span>',
+                    low: '<span class="text-emerald-500 font-black text-xs">🌱 低</span>'
+                };
+
+                // Status Toggle Button Style
+                let statusBtn = '';
+                if (item.status === 'completed') {
+                    statusBtn = `
+                        <button onclick="toggleStatus('${item.id}')" class="bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-sm">
+                            <i class="fa-solid fa-circle-check"></i> 完了済み
+                        </button>`;
+                } else if (item.status === 'in_progress') {
+                    statusBtn = `
+                        <button onclick="toggleStatus('${item.id}')" class="bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1 shadow-sm">
+                            <i class="fa-solid fa-spinner fa-spin"></i> 進行中
+                        </button>`;
+                } else {
+                    statusBtn = `
+                        <button onclick="toggleStatus('${item.id}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+                            <i class="fa-regular fa-circle"></i> 未着手
+                        </button>`;
+                }
+
+                return `
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:shadow-md transition-all space-y-2.5 relative">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="bg-indigo-50 text-indigo-700 text-xs font-black px-2.5 py-1 rounded-lg">
+                                    ${subjectIcons[item.subject] || '📚'} ${item.subject}
+                                </span>
+                                ${daysBadge}
+                                ${pIcons[item.priority] || pIcons['medium']}
+                            </div>
+                            <!-- Card Actions -->
+                            <div class="flex items-center gap-1">
+                                <button onclick="openEditModal('${item.id}')" class="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg transition" title="編集">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button onclick="deleteSubmission('${item.id}')" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg transition" title="削除">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Content Title -->
+                        <div>
+                            <h3 class="text-sm font-black text-slate-800 ${item.status === 'completed' ? 'line-through text-slate-400' : ''}">
+                                ${escapeHtml(item.title)}
+                            </h3>
+                            ${item.memo ? `<p class="text-xs text-slate-500 mt-1 bg-slate-50 p-2 rounded-xl border border-slate-100"><i class="fa-regular fa-sticky-note text-slate-400 mr-1"></i>${escapeHtml(item.memo)}</p>` : ''}
+                        </div>
+
+                        <!-- Footer Info & Toggle -->
+                        <div class="flex items-center justify-between pt-1 border-t border-slate-100 text-xs text-slate-400">
+                            <span><i class="fa-regular fa-calendar mr-1"></i>締切: ${item.deadline}</span>
+                            ${statusBtn}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function loadTimerStats() {
+            const savedMinutes = localStorage.getItem('today_study_minutes');
+            if (savedMinutes) {
+                todayStudyMinutes = parseInt(savedMinutes, 10) || 0;
+            }
+            updateTimerUI();
+        }
+
+        function toggleTimer() {
+            const btn = document.getElementById('btn-timer-toggle');
+            if (isTimerRunning) {
+                // Pause
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                btn.innerHTML = `<i class="fa-solid fa-play"></i> <span>再開</span>`;
+                btn.className = "bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition flex items-center gap-1";
+                document.getElementById('timer-status').innerText = "一時停止中";
+            } else {
+                // Start
+                isTimerRunning = true;
+                btn.innerHTML = `<i class="fa-solid fa-pause"></i> <span>一時停止</span>`;
+                btn.className = "bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition flex items-center gap-1";
+                document.getElementById('timer-status').innerText = "全集中で課題に取り組み中！";
+
+                timerInterval = setInterval(() => {
+                    if (timerSeconds > 0) {
+                        timerSeconds--;
+                        updateTimerUI();
+                    } else {
+                        // Timer Complete
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        todayStudyMinutes += 25;
+                        localStorage.setItem('today_study_minutes', todayStudyMinutes);
+                        playBeepSound(880, 0.5);
+                        showToast("25分間の勉強完了！お疲れ様でした！", "success");
+                        resetTimer();
+                        broadcastStudyTime();
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+            timerSeconds = 1500; // 25 mins
+            const btn = document.getElementById('btn-timer-toggle');
+            btn.innerHTML = `<i class="fa-solid fa-play"></i> <span>スタート</span>`;
+            btn.className = "bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition flex items-center gap-1";
+            document.getElementById('timer-status').innerText = "提出物を終わらせる時間！";
+            updateTimerUI();
+        }
+
+        function updateTimerUI() {
+            const mins = Math.floor(timerSeconds / 60);
+            const secs = timerSeconds % 60;
+            document.getElementById('timer-display').innerText = 
+                `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            document.getElementById('today-study-total').innerText = `今日: ${todayStudyMinutes}分`;
+        }
+
+        // Web Audio API Beep Function
+        function playBeepSound(freq, duration) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duration);
+            } catch(e) {
+                console.log("Audio not allowed or unsupported.");
+            }
+        }
+
+        function toggleFriendPanel() {
+            const panel = document.getElementById('friend-panel');
+            panel.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function initLocalBroadcast() {
+            if ('BroadcastChannel' in window) {
+                localChannel = new BroadcastChannel('hw_robot_channel');
+                localChannel.onmessage = (event) => {
+                    const data = event.data;
+                    if (data && data.type === 'CHAT') {
+                        appendChatMessage(data.sender, data.text, false);
+                    } else if (data && data.type === 'STUDY_UPDATE') {
+                        friendStudyTimes[data.sender] = data.minutes;
+                        renderFriendStudyTimes();
+                    }
+                };
+            }
+        }
+
+        function initPeer() {
+            try {
+                peer = new Peer();
+                peer.on('open', (id) => {
+                    myPeerId = id;
+                    document.getElementById('my-peer-id').value = id;
+                });
+
+                peer.on('connection', (conn) => {
+                    setupConnection(conn);
+                });
+
+                peer.on('error', (err) => {
+                    console.log("PeerJS error:", err);
+                    document.getElementById('my-peer-id').value = "オフライン同期中";
+                });
+            } catch(e) {
+                document.getElementById('my-peer-id').value = "オフライン同期中";
+            }
+        }
+
+        function connectToPeer() {
+            const targetId = document.getElementById('target-peer-id').value.trim();
+            if (!targetId) return;
+
+            if (peer && !peer.destroyed) {
+                const conn = peer.connect(targetId);
+                setupConnection(conn);
+            } else {
+                showToast("友達のIDと仮接続しました（ローカル同期モード）", "info");
+            }
+        }
+
+        function setupConnection(conn) {
+            conn.on('open', () => {
+                connections[conn.peer] = conn;
+                showToast("友達と接続しました！", "success");
+                broadcastStudyTime();
+            });
+
+            conn.on('data', (data) => {
+                if (data.type === 'CHAT') {
+                    appendChatMessage(data.sender || '友達', data.text, false);
+                } else if (data.type === 'STUDY_UPDATE') {
+                    friendStudyTimes[data.sender || conn.peer] = data.minutes;
+                    renderFriendStudyTimes();
+                }
+            });
+
+            conn.on('close', () => {
+                delete connections[conn.peer];
+            });
+        }
+
+        function copyMyId() {
+            const copyText = document.getElementById('my-peer-id');
+            if (!copyText.value) return;
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(copyText.value);
+            } else {
+                copyText.select();
+                document.execCommand('copy');
+            }
+            showToast("あなたのIDをコピーしました！", "success");
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            // Broadcast via PeerJS
+            Object.values(connections).forEach(conn => {
+                conn.send({ type: 'CHAT', sender: '自分', text: msg });
+            });
+
+            // Broadcast via BroadcastChannel
+            if (localChannel) {
+                localChannel.postMessage({ type: 'CHAT', sender: '友達', text: msg });
+            }
+
+            appendChatMessage('自分', msg, true);
+            input.value = '';
+        }
+
+        function appendChatMessage(sender, text, isSelf) {
+            const box = document.getElementById('chat-box');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `p-2 rounded-xl text-xs max-w-[85%] ${isSelf ? 'bg-indigo-600 text-white ml-auto' : 'bg-white border border-slate-200 text-slate-800'}`;
+            msgDiv.innerHTML = `<span class="font-extrabold text-[10px] block opacity-75">${escapeHtml(sender)}</span>${escapeHtml(text)}`;
+            box.appendChild(msgDiv);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function broadcastStudyTime() {
+            const payload = { type: 'STUDY_UPDATE', sender: myPeerId || '友達', minutes: todayStudyMinutes };
+            
+            Object.values(connections).forEach(conn => {
+                conn.send(payload);
+            });
+
+            if (localChannel) {
+                localChannel.postMessage(payload);
+            }
+            showToast("勉強時間を共有しました！", "info");
+        }
+
+        function renderFriendStudyTimes() {
+            const container = document.getElementById('friend-study-items');
+            const keys = Object.keys(friendStudyTimes);
+            if (keys.length === 0) {
+                container.innerHTML = `<p class="text-slate-400 text-[11px] text-center py-1">友達と接続すると、お互いの勉強時間がここに表示されます！</p>`;
+                return;
+            }
+
+            container.innerHTML = keys.map(k => `
+                <div class="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-indigo-100">
+                    <span class="font-bold text-slate-700"><i class="fa-solid fa-user text-indigo-400 mr-1"></i> ${escapeHtml(k.substring(0, 8))}...</span>
+                    <span class="font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${friendStudyTimes[k]} 分</span>
+                </div>
+            `).join('');
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msg = document.getElementById('toast-message');
+
+            msg.innerText = message;
+            if (type === 'success') {
+                icon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+            } else if (type === 'error') {
+                icon.className = "fa-solid fa-circle-xmark text-red-400 text-base";
+            } else {
+                icon.className = "fa-solid fa-circle-info text-blue-400 text-base";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-3');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-3');
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
